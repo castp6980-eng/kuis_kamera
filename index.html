@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kuis Berdiri Kiri / Kanan</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;background:#111;color:#fff;font-family:system-ui,Arial,sans-serif;overflow:hidden}
+  #app{display:flex;flex-direction:column;height:100%}
+  #top{flex:0 0 auto;padding:14px 20px;background:#1f2937;text-align:center;border-bottom:3px solid #374151}
+  #meta{display:flex;justify-content:space-between;font-size:14px;opacity:.8;margin-bottom:6px}
+  #question{font-size:clamp(20px,4vw,40px);font-weight:700;line-height:1.25}
+  #timerbar{height:6px;background:#374151;margin-top:10px;border-radius:3px;overflow:hidden}
+  #timerfill{height:100%;width:100%;background:#fbbf24;transition:width .2s linear}
+  #stage{position:relative;flex:1;display:flex;min-height:0}
+  video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1);opacity:.55}
+  .side{position:relative;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+        padding:16px;text-align:center;transition:background .25s,box-shadow .25s;border:2px solid rgba(255,255,255,.25)}
+  .side .tag{font-size:14px;letter-spacing:2px;opacity:.8}
+  .side .ans{font-size:clamp(22px,5vw,52px);font-weight:800;text-shadow:0 2px 8px rgba(0,0,0,.7);margin-top:6px}
+  .side .hold{position:absolute;left:10%;right:10%;bottom:18px;height:10px;background:rgba(0,0,0,.4);border-radius:5px;overflow:hidden}
+  .side .hold i{display:block;height:100%;width:0;background:#38bdf8}
+  .side.active{background:rgba(56,189,248,.28);box-shadow:inset 0 0 0 6px #38bdf8}
+  .side.correct{background:rgba(22,163,74,.85)!important;box-shadow:inset 0 0 0 8px #bbf7d0}
+  .side.wrong{background:rgba(220,38,38,.85)!important;box-shadow:inset 0 0 0 8px #fecaca}
+  .side.reveal{box-shadow:inset 0 0 0 8px #bbf7d0}
+  #status{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.65);
+          padding:6px 14px;border-radius:20px;font-size:14px;z-index:3;white-space:nowrap}
+  #dot{position:absolute;bottom:40px;width:26px;height:26px;border-radius:50%;background:#fbbf24;border:3px solid #fff;
+       transform:translateX(-50%);left:50%;z-index:3;opacity:0;transition:left .1s,opacity .2s}
+  #overlay{position:fixed;inset:0;background:rgba(17,24,39,.96);display:flex;flex-direction:column;align-items:center;
+           justify-content:center;gap:16px;z-index:10;text-align:center;padding:24px}
+  #overlay h1{font-size:clamp(28px,6vw,52px)}
+  #overlay p{max-width:520px;opacity:.85;line-height:1.5}
+  button{background:#2563eb;color:#fff;border:0;border-radius:10px;padding:14px 28px;font-size:18px;font-weight:700;cursor:pointer}
+  button.small{padding:6px 12px;font-size:13px;background:#4b5563;border-radius:8px}
+  .hidden{display:none!important}
+  canvas#proc{display:none}
+
+  /* ===== Efek dramatis ===== */
+  #fx{position:fixed;inset:0;pointer-events:none;z-index:8;width:100%;height:100%}
+  #flash{position:fixed;inset:0;pointer-events:none;z-index:7;opacity:0}
+  #flash.go-green{animation:flashG .9s ease-out}
+  #flash.go-red{animation:flashR .9s ease-out}
+  @keyframes flashG{0%{opacity:.9;background:#4ade80}100%{opacity:0}}
+  @keyframes flashR{0%{opacity:.95;background:#ef4444}30%{opacity:.2}50%{opacity:.7;background:#ef4444}100%{opacity:0}}
+  #banner{position:fixed;left:50%;top:50%;z-index:9;pointer-events:none;font-weight:900;letter-spacing:4px;
+          font-size:clamp(48px,14vw,150px);opacity:0;transform:translate(-50%,-50%) scale(.2);
+          text-shadow:0 0 30px currentColor,0 6px 0 rgba(0,0,0,.5);-webkit-text-stroke:3px rgba(0,0,0,.35)}
+  #banner.correct{color:#86efac;animation:popIn 1.6s cubic-bezier(.2,1.6,.4,1) forwards}
+  #banner.wrong{color:#fca5a5;animation:slam 1.6s ease-out forwards}
+  @keyframes popIn{0%{opacity:0;transform:translate(-50%,-50%) scale(.2) rotate(-12deg)}
+    30%{opacity:1;transform:translate(-50%,-50%) scale(1.25) rotate(4deg)}
+    45%{transform:translate(-50%,-50%) scale(1) rotate(0)}
+    85%{opacity:1;transform:translate(-50%,-50%) scale(1.05)}
+    100%{opacity:0;transform:translate(-50%,-50%) scale(1.3)}}
+  @keyframes slam{0%{opacity:0;transform:translate(-50%,-50%) scale(4)}
+    20%{opacity:1;transform:translate(-50%,-50%) scale(1)}
+    85%{opacity:1;transform:translate(-50%,-50%) scale(1)}
+    100%{opacity:0;transform:translate(-50%,-50%) scale(.8)}}
+  #app.shake{animation:shake .7s cubic-bezier(.36,.07,.19,.97)}
+  @keyframes shake{10%,90%{transform:translate(-3px,1px)}20%,80%{transform:translate(6px,-3px)}
+    30%,50%,70%{transform:translate(-12px,4px)}40%,60%{transform:translate(12px,-4px)}}
+  .side.lockpulse{animation:lockpulse .25s ease-in-out infinite alternate}
+  @keyframes lockpulse{from{filter:brightness(1)}to{filter:brightness(1.7)}}
+  .side.correct{animation:winPulse .8s ease-out 2}
+  @keyframes winPulse{0%{transform:scale(1)}40%{transform:scale(1.04)}100%{transform:scale(1)}}
+  .side.reveal{animation:revealBlink .5s ease-in-out 4}
+  @keyframes revealBlink{50%{background:rgba(34,197,94,.55)}}
+  #qimg{display:block;margin:8px auto 0;max-height:24vh;max-width:90%;border-radius:10px;object-fit:contain;background:#0006}
+  #menu{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;max-width:720px}
+  #menu button.m{background:#1d4ed8;min-width:180px}
+  #menu button.m small{display:block;font-weight:400;font-size:13px;opacity:.8;margin-top:2px}
+  #menu button.alt{background:#4b5563}
+  #menu .msg{opacity:.85}
+  #menu select{font-size:18px;padding:12px 16px;border-radius:10px;border:2px solid #4b5563;background:#1f2937;color:#fff;
+               min-width:260px;max-width:90vw;cursor:pointer}
+  #menu select:focus{outline:none;border-color:#38bdf8}
+  #menu button:disabled{opacity:.4;cursor:not-allowed}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="top">
+    <div id="meta">
+      <span id="qno">Soal 0/0</span>
+      <span><button class="small" id="recal">Kalibrasi ulang</button></span>
+      <span id="score">Skor: 0</span>
+    </div>
+    <div id="question">...</div>
+    <img id="qimg" class="hidden" alt="">
+    <div id="timerbar"><div id="timerfill"></div></div>
+  </div>
+  <div id="stage">
+    <video id="cam" playsinline muted autoplay></video>
+    <div id="status">Menyiapkan…</div>
+    <div class="side" id="left"><div class="tag">◀ KIRI</div><div class="ans" id="ansL"></div><div class="hold"><i></i></div></div>
+    <div class="side" id="right"><div class="tag">KANAN ▶</div><div class="ans" id="ansR"></div><div class="hold"><i></i></div></div>
+    <div id="dot"></div>
+  </div>
+</div>
+<canvas id="fx"></canvas>
+<div id="flash"></div>
+<div id="banner"></div>
+<canvas id="proc" width="80" height="60"></canvas>
+
+<div id="overlay">
+  <h1 id="ovTitle">🎯 Kuis Berdiri Kiri / Kanan</h1>
+  <p id="ovText"><b>Pilih materi</b> terlebih dahulu. Lalu berdirilah di sisi <b>kiri</b> atau <b>kanan</b> di depan kamera untuk memilih jawaban. Tetap di sisi itu ±4 detik untuk mengunci jawaban.
+  Saat kalibrasi, pastikan <b>tidak ada orang</b> di depan kamera.<br><small>Cadangan: tombol ← dan → di keyboard / ketuk sisi layar.</small></p>
+  <div id="menu"></div>
+</div>
+
+<script>
+/* ====== KONFIGURASI ======
+   Tempel URL Web App Apps Script (yang berakhiran /exec) di bawah ini */
+const API_URL = "https://script.google.com/macros/s/AKfycbwafbSj0YpHBkQ1UoNw8W58WzO6fJz_j61casJW65KbRLkT2ETIsjiUo0lw5TNCcH2B/exec";   // contoh: https://script.google.com/macros/s/AKfy.../exec
+let QUESTIONS = [];
+let currentMateri = '';
+const DEMO = [
+  {q:"Ibu kota Indonesia saat ini adalah…", L:"Jakarta", R:"Bandung", answer:"L"},
+  {q:"Berapa hasil 7 × 8?", L:"54", R:"56", answer:"R"},
+  {q:"Planet terdekat dari Matahari?", L:"Merkurius", R:"Venus", answer:"L"}
+];
+const TIME_PER_Q = 30;     // detik per soal
+const HOLD_MS = 4000;      // lama berdiri untuk mengunci jawaban (ms)
+const READ_MS = 3000;      // waktu baca soal sebelum pemindaian dimulai (ms)
+const RESULT_MS = 3000;    // lama hasil ditampilkan
+const MIN_AREA = 0.035;    // minimal area gerak/orang (3.5% frame)
+const DIFF_TH = 55;        // ambang perbedaan warna
+
+const $ = id => document.getElementById(id);
+const video = $('cam'), proc = $('proc'), ctx = proc.getContext('2d', {willReadFrequently:true});
+const W = proc.width, H = proc.height;
+let bg = null, calibrating = false, idx = 0, score = 0, state = 'idle';
+let lastStep = 0, startAt = 0, side = null, sideSince = 0, posX = 0.5, timeLeft = TIME_PER_Q, timer = null, stream = null;
+
+function setStatus(t){ $('status').textContent = t; }
+
+async function startCamera(){
+  try{
+    stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:640,height:480},audio:false});
+    video.srcObject = stream; await video.play(); return true;
+  }catch(e){
+    setStatus('Kamera tidak tersedia – pakai keyboard/ketuk layar');
+    return false;
+  }
+}
+
+function grab(){
+  ctx.save(); ctx.translate(W,0); ctx.scale(-1,1); // mirror: kanan layar = kanan pengguna
+  ctx.drawImage(video,0,0,W,H); ctx.restore();
+  return ctx.getImageData(0,0,W,H).data;
+}
+function meanLuma(d){ let s=0; for(let i=0;i<d.length;i+=4) s+=d[i]*.3+d[i+1]*.59+d[i+2]*.11; return s/(d.length/4); }
+
+async function calibrate(){
+  if(!stream){ state='ready'; return; }
+  calibrating = true; bg = null;
+  for(let c=3;c>0;c--){ setStatus(`Kalibrasi: keluar dari frame… ${c}`); await sleep(1000); }
+  setStatus('Merekam latar…');
+  const acc = new Float32Array(W*H*4); const N=12;
+  for(let n=0;n<N;n++){ const d = grab(); for(let i=0;i<d.length;i++) acc[i]+=d[i]/N; await sleep(80); }
+  bg = acc; bg.luma = meanLuma(acc); calibrating = false;
+}
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+
+/* Deteksi posisi: bandingkan frame dengan latar, hitung titik pusat piksel yang berubah */
+function detect(){
+  if(!bg || !stream || video.readyState < 2) return null;
+  const d = grab(), off = meanLuma(d) - bg.luma;
+  let cnt=0, sx=0;
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+    const i=(y*W+x)*4;
+    const diff = Math.abs(d[i]-off-bg[i]) + Math.abs(d[i+1]-off-bg[i+1]) + Math.abs(d[i+2]-off-bg[i+2]);
+    if(diff > DIFF_TH){ cnt++; sx+=x; }
+  }
+  if(cnt/(W*H) < MIN_AREA) return null;
+  return sx/cnt/W; // 0..1 (0=kiri layar)
+}
+
+
+/* ====== SOUND (WebAudio, tanpa file eksternal) ====== */
+let AC=null;
+function initAudio(){ try{ if(!AC) AC=new (window.AudioContext||window.webkitAudioContext)(); if(AC.state==='suspended') AC.resume(); }catch(e){} }
+function tone(f,t0,dur,type='sine',vol=.25,slideTo=null){
+  if(!AC) return; const t=AC.currentTime+t0, o=AC.createOscillator(), g=AC.createGain();
+  o.type=type; o.frequency.setValueAtTime(f,t); if(slideTo) o.frequency.exponentialRampToValueAtTime(slideTo,t+dur);
+  g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(vol,t+0.02); g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+  o.connect(g).connect(AC.destination); o.start(t); o.stop(t+dur+.05);
+}
+function noise(t0,dur,vol=.3,freq=1200){
+  if(!AC) return; const t=AC.currentTime+t0, n=Math.floor(AC.sampleRate*dur), b=AC.createBuffer(1,n,AC.sampleRate), d=b.getChannelData(0);
+  for(let i=0;i<n;i++) d[i]=(Math.random()*2-1)*(1-i/n);
+  const src=AC.createBufferSource(), f=AC.createBiquadFilter(), g=AC.createGain();
+  src.buffer=b; f.type='lowpass'; f.frequency.value=freq; g.gain.value=vol; src.connect(f).connect(g).connect(AC.destination); src.start(t);
+}
+function sfxTick(step){ tone(520+step*140,0,.12,'square',.12); }
+function sfxDrumroll(dur){           // suspense: drum roll yang makin cepat & keras
+  let t=0, gap=.12, v=.08; while(t<dur){ noise(t,.09,v,500); tone(90,t,.08,'triangle',v*1.5); t+=gap; gap=Math.max(.035,gap*.88); v=Math.min(.35,v*1.06); }
+  tone(200,0,dur,'sawtooth',.05,900);
+}
+function sfxCorrect(){               // fanfare kemenangan
+  noise(0,.5,.4,3000); tone(120,0,.4,'sine',.5,40);
+  [523.25,659.25,783.99,1046.5].forEach((f,i)=>{ tone(f,.08+i*.11,.35,'triangle',.28); tone(f*2,.08+i*.11,.25,'sine',.1); });
+  [523.25,659.25,783.99,1046.5,1318.5].forEach(f=>tone(f,.6,1.1,'triangle',.18));
+  for(let i=0;i<10;i++) tone(1800+Math.random()*2200,.7+i*.07,.15,'sine',.06);   // kilau
+}
+function sfxWrong(){                 // buzzer + boom + "wah wah"
+  noise(0,.7,.55,300); tone(90,0,.8,'sine',.7,28);
+  tone(180,0,.7,'sawtooth',.3,70); tone(185,0,.7,'square',.15,70);
+  [392,370,349,311].forEach((f,i)=>tone(f,.55+i*.28,.3,'sawtooth',.16,f*.93));
+}
+
+/* ====== VISUAL FX ====== */
+const fx=$('fx'), fctx=fx.getContext('2d'); let parts=[], fxRun=false;
+function sizeFx(){ fx.width=innerWidth; fx.height=innerHeight; } sizeFx(); addEventListener('resize',sizeFx);
+function confetti(cx){
+  const cols=['#facc15','#4ade80','#38bdf8','#f472b6','#fb923c','#fff'];
+  for(let i=0;i<180;i++){ const a=-Math.PI/2+(Math.random()-.5)*2.2, v=8+Math.random()*16;
+    parts.push({x:cx,y:innerHeight*.62,vx:Math.cos(a)*v,vy:Math.sin(a)*v,r:4+Math.random()*7,rot:Math.random()*6,vr:(Math.random()-.5)*.4,
+      c:cols[i%cols.length],life:1,shape:Math.random()<.5}); }
+  if(!fxRun){ fxRun=true; requestAnimationFrame(stepFx); }
+}
+function stepFx(){
+  fctx.clearRect(0,0,fx.width,fx.height);
+  parts=parts.filter(p=>p.life>0&&p.y<fx.height+30);
+  for(const p of parts){ p.vy+=.35; p.vx*=.99; p.x+=p.vx; p.y+=p.vy; p.rot+=p.vr; p.life-=.007;
+    fctx.save(); fctx.globalAlpha=Math.max(0,Math.min(1,p.life*1.5)); fctx.translate(p.x,p.y); fctx.rotate(p.rot); fctx.fillStyle=p.c;
+    p.shape?fctx.fillRect(-p.r,-p.r/2,p.r*2,p.r):(fctx.beginPath(),fctx.arc(0,0,p.r/1.5,0,7),fctx.fill()); fctx.restore(); }
+  parts.length?requestAnimationFrame(stepFx):(fxRun=false,fctx.clearRect(0,0,fx.width,fx.height));
+}
+function banner(text,cls){ const b=$('banner'); b.className=''; void b.offsetWidth; b.textContent=text; b.className=cls; }
+function flash(cls){ const f=$('flash'); f.className=''; void f.offsetWidth; f.className=cls; }
+function shake(){ const a=$('app'); a.classList.remove('shake'); void a.offsetWidth; a.classList.add('shake'); if(navigator.vibrate) navigator.vibrate([200,80,300]); }
+
+function showQuestion(){
+  const Q = QUESTIONS[idx];
+  $('qno').textContent = `Soal ${idx+1}/${QUESTIONS.length}`;
+  $('question').textContent = Q.q;
+  const im=$('qimg'); if(Q.img){ im.onerror=()=>im.classList.add('hidden'); im.onload=()=>im.classList.remove('hidden'); im.src=Q.img; } else { im.classList.add('hidden'); im.removeAttribute('src'); } $('ansL').textContent = Q.L; $('ansR').textContent = Q.R;
+  $('score').textContent = 'Skor: '+score;
+  ['left','right'].forEach(i=>{ $(i).className='side'; $(i).querySelector('.hold i').style.width='0'; });
+  $('banner').className=''; $('app').classList.remove('shake'); lastStep=0;
+  side=null; sideSince=0; timeLeft=TIME_PER_Q; state='playing'; startAt = performance.now()+READ_MS; updateTimer();
+  clearInterval(timer);
+  timer = setInterval(()=>{ if(state!=='playing') return; timeLeft-=0.2; updateTimer();
+    if(timeLeft<=0){ lock(side); } },200);
+}
+function updateTimer(){ $('timerfill').style.width = Math.max(0,timeLeft/TIME_PER_Q*100)+'%'; }
+
+function lock(chosen){
+  if(state!=='playing') return;
+  state='suspense'; clearInterval(timer);
+  const Q = QUESTIONS[idx], correctSide = Q.answer;
+  const L=$('left'), R=$('right');
+  L.classList.remove('active'); R.classList.remove('active');
+  initAudio();
+  setStatus('🔒 Jawaban dikunci… 🥁');
+  const el = chosen ? (chosen==='L'?L:R) : null;
+  if(el) el.classList.add('lockpulse');
+  const SUSPENSE = 1600;
+  sfxDrumroll(SUSPENSE/1000);
+  setTimeout(()=>{
+    state='result';
+    L.classList.remove('lockpulse'); R.classList.remove('lockpulse');
+    const ok = chosen && chosen===correctSide;
+    if(ok){
+      el.classList.add('correct'); score++;
+      setStatus('✅ Benar!'); sfxCorrect(); flash('go-green'); banner('BENAR!','correct');
+      confetti(innerWidth*(chosen==='L'?.25:.75)); setTimeout(()=>confetti(innerWidth*.5),350);
+    }else{
+      if(el) el.classList.add('wrong'); else { L.classList.add('wrong'); R.classList.add('wrong'); }
+      (correctSide==='L'?L:R).classList.add('reveal');
+      setStatus(chosen?'❌ Salah!':'⏰ Waktu habis!'); sfxWrong(); flash('go-red'); shake();
+      banner(chosen?'SALAH!':'WAKTU HABIS!','wrong');
+    }
+    $('score').textContent = 'Skor: '+score;
+    setTimeout(()=>{ idx++; idx<QUESTIONS.length ? showQuestion() : finish(); }, RESULT_MS);
+  }, SUSPENSE);
+}
+
+function finish(){
+  state='done';
+  $('ovTitle').textContent = `Selesai! Skor ${score}/${QUESTIONS.length}`;
+  $('ovText').innerHTML = score===QUESTIONS.length ? '🏆 Sempurna!' : 'Mau coba lagi?';
+  $('menu').innerHTML='';
+  const a=document.createElement('button'); a.textContent='Main lagi'; a.onclick=()=>startMateri(currentMateri);
+  const b=document.createElement('button'); b.textContent='Pilih materi lain'; b.className='alt'; b.onclick=()=>{ $('ovTitle').textContent='🎯 Pilih Materi'; $('ovText').textContent=''; loadMateri(); };
+  $('menu').append(a,b); $('overlay').classList.remove('hidden');
+}
+
+/* Loop utama */
+function loop(){
+  if(state==='playing' && performance.now() < startAt){
+    setStatus(`Baca soal dulu… ${Math.ceil((startAt-performance.now())/1000)}`);
+    $('dot').style.opacity=0; side=null;
+  }else if(state==='playing'){
+    const x = detect();
+    if(x!==null){
+      posX = posX*0.6 + x*0.4;
+      $('dot').style.left = (posX*100)+'%'; $('dot').style.opacity=1;
+      const s = posX<0.5?'L':'R', now = performance.now();
+      if(s!==side){ side=s; sideSince=now; }
+      const prog = Math.min(1,(now-sideSince)/HOLD_MS);
+      $('left').classList.toggle('active',s==='L'); $('right').classList.toggle('active',s==='R');
+      $('left').querySelector('.hold i').style.width = s==='L'?prog*100+'%':'0';
+      $('right').querySelector('.hold i').style.width = s==='R'?prog*100+'%':'0';
+      setStatus(`Terdeteksi di ${s==='L'?'KIRI':'KANAN'} – tahan…`);
+      const step=Math.floor(prog*4); if(step!==lastStep && step>0 && step<4){ initAudio(); sfxTick(step); } lastStep=s!==side?0:step;
+      if(prog>=1) lock(side);
+    }else if(stream){
+      side=null; $('dot').style.opacity=0;
+      ['left','right'].forEach(i=>{ $(i).classList.remove('active'); $(i).querySelector('.hold i').style.width='0'; });
+      setStatus('Berdiri di depan kamera, pilih kiri / kanan');
+    }
+  }
+  requestAnimationFrame(loop);
+}
+
+/* Cadangan: keyboard & ketuk */
+addEventListener('keydown',e=>{ if(state!=='playing') return;
+  if(e.key==='ArrowLeft') lock('L'); if(e.key==='ArrowRight') lock('R'); });
+$('left').addEventListener('click',()=>{ if(!stream) lock('L'); });
+$('right').addEventListener('click',()=>{ if(!stream) lock('R'); });
+
+$('recal').onclick = async()=>{ const prev=state; state='idle'; await calibrate(); state=prev==='playing'?'playing':prev; };
+
+/* ====== Ambil data dari Google Sheet ====== */
+const apiReady = () => API_URL && !API_URL.startsWith('PASTE');
+async function api(params){
+  const r = await fetch(API_URL+'?'+new URLSearchParams(params));
+  const d = await r.json(); if(!d.ok) throw new Error(d.error||'Gagal memuat data'); return d;
+}
+function driveImg(u){           // ubah link Google Drive jadi link gambar langsung
+  if(!u) return '';
+  const m = u.match(/drive\.google\.com\/file\/d\/([^/]+)/) || u.match(/[?&]id=([^&]+)/);
+  return (u.includes('drive.google.com') && m) ? `https://drive.google.com/thumbnail?id=${m[1]}&sz=w1000` : u;
+}
+function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+function toQuestion(x){
+  const k = String(x.kunci_jawaban).trim().toUpperCase();
+  const ans = (k==='A'||k===x.optA.toUpperCase()) ? 'L' : (k==='B'||k===x.optB.toUpperCase()) ? 'R' : 'L';
+  return {q:x.soal, img:driveImg(x.url_gambar), L:x.optA, R:x.optB, answer:ans};
+}
+function menuMsg(t,retry){
+  $('menu').innerHTML=''; const d=document.createElement('div'); d.className='msg'; d.textContent=t; $('menu').append(d);
+  if(retry){ const b=document.createElement('button'); b.textContent='Coba lagi'; b.onclick=retry; $('menu').append(b); }
+}
+function menuDropdown(items, onStart){      // items: [{name, jumlah}]
+  $('menu').innerHTML='';
+  const sel=document.createElement('select');
+  sel.innerHTML='<option value="">— Pilih materi —</option>';
+  items.forEach(m=>{ const o=document.createElement('option'); o.value=m.name; o.textContent=`${m.name} (${m.jumlah} soal)`; sel.append(o); });
+  const btn=document.createElement('button'); btn.textContent='Mulai'; btn.disabled=true;
+  sel.onchange=()=>{ btn.disabled=!sel.value; };
+  btn.onclick=()=>onStart(sel.value);
+  $('menu').append(sel,btn);
+  if(currentMateri && items.some(m=>m.name===currentMateri)){ sel.value=currentMateri; btn.disabled=false; }
+}
+async function loadMateri(){
+  if(!apiReady()){
+    menuMsg('URL Apps Script belum diisi (API_URL). Menampilkan materi demo.');
+    const msg=$('menu').firstChild;
+    const tmp=document.createElement('div'); tmp.style.cssText='display:flex;gap:12px;flex-wrap:wrap;justify-content:center;width:100%';
+    menuDropdown([{name:'Demo',jumlah:DEMO.length}], startMateri);
+    $('menu').prepend(msg); return;
+  }
+  menuMsg('Memuat daftar materi…');
+  try{
+    const d = await api({action:'materi'});
+    if(!d.materi.length) return menuMsg('Belum ada soal di spreadsheet.', loadMateri);
+    menuDropdown(d.materi.map(m=>({name:m.materi,jumlah:m.jumlah})), startMateri);
+  }catch(e){ menuMsg('Gagal memuat materi: '+e.message, loadMateri); }
+}
+async function startMateri(name){
+  initAudio(); menuMsg('Memuat soal…');
+  try{
+    let list;
+    if(apiReady()){ const d=await api({action:'soal',materi:name}); list=d.soal.map(toQuestion); }
+    else list=DEMO;
+    if(!list.length) return menuMsg('Materi ini belum punya soal.', loadMateri);
+    begin(name, list);
+  }catch(e){ menuMsg('Gagal memuat soal: '+e.message, ()=>startMateri(name)); }
+}
+async function begin(name, list){
+  currentMateri=name; QUESTIONS=shuffle(list.slice()); idx=0; score=0;
+  initAudio(); menuMsg('Menyalakan kamera…');
+  if(!stream) await startCamera();
+  $('overlay').classList.add('hidden');
+  state='idle'; await calibrate();
+  showQuestion();
+}
+$('ovTitle').textContent='🎯 Pilih Materi';
+loadMateri();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
